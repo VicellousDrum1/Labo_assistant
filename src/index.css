@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  html { height: 100%; }
+  body {
+    height: 100%;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    @apply text-graphite antialiased;
+    background: linear-gradient(180deg, theme('colors.canvas.a') 0%, theme('colors.canvas.b') 55%);
+    background-attachment: fixed;
+  }
+  #root { height: 100%; }
+}
+
+@layer components {
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { @apply bg-transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { @apply bg-gray-300 rounded-full; }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover { @apply bg-gray-400; }
+
+  .table-container { @apply w-full overflow-x-auto rounded-2xl bg-white shadow-soft; }
+
+  /* Valeur mono (codes, numéros de série) — touche fonctionnelle discrète, pas la voix dominante */
+  .data-value { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+  /* Badge statut — pilule + pastille, jamais la couleur seule */
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold;
+  }
+  .badge .badge-dot { @apply w-1.5 h-1.5 rounded-full flex-shrink-0; }
+  .badge-ok     { @apply bg-ok-50 text-ok-700; }     .badge-ok .badge-dot     { @apply bg-ok-500; }
+  .badge-danger { @apply bg-danger-50 text-danger-700; } .badge-danger .badge-dot { @apply bg-danger-500; }
+  .badge-info   { @apply bg-blue-50 text-blue-700; } .badge-info .badge-dot   { @apply bg-blue-500; }
+  .badge-muted  { @apply bg-muted-50 text-muted-700; }  .badge-muted .badge-dot  { @apply bg-muted-500; }
+  .badge-signal { @apply bg-amber-50 text-amber-700; } .badge-signal .badge-dot { @apply bg-amber-500; }
+
+  /* Boutons — très arrondis, ombre douce plutôt que bordure */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2.5 bg-navy-900 text-white
+           text-sm font-bold rounded-2xl shadow-pop hover:bg-navy-700
+           transition-colors focus:outline-none focus:ring-2 focus:ring-navy-500
+           focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2.5 bg-white text-navy-900
+           text-sm font-bold rounded-2xl shadow-softer
+           hover:shadow-soft transition-shadow
+           focus:outline-none focus:ring-2 focus:ring-navy-500 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-signal {
+    @apply inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-amber-900
+           text-sm font-bold rounded-2xl shadow-pop hover:bg-amber-700 hover:text-white
+           transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500
+           focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-danger {
+    @apply inline-flex items-center gap-2 px-4 py-2.5 bg-danger-500 text-white
+           text-sm font-bold rounded-2xl shadow-pop hover:bg-danger-700
+           transition-colors focus:outline-none focus:ring-2 focus:ring-danger-500
+           focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-icon {
+    @apply inline-flex items-center justify-center w-9 h-9 rounded-2xl
+           text-slate hover:bg-white hover:shadow-softer hover:text-navy-900 transition-all;
+  }
+
+  /* Form inputs — rond, fond blanc, focus marqué */
+  .input {
+    @apply block w-full px-3.5 py-2.5 bg-white border border-transparent shadow-softer rounded-2xl text-sm
+           placeholder-slate focus:outline-none focus:ring-2 focus:ring-navy-500
+           focus:border-transparent transition-all;
+  }
+  .input-error {
+    @apply ring-2 ring-danger-500;
+  }
+  .label {
+    @apply block text-sm font-bold text-graphite mb-1;
+  }
+  .label-required::after {
+    content: ' *';
+    @apply text-danger-500;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-3xl shadow-soft;
+  }
+  .card-header {
+    @apply px-6 py-4 border-b border-gray-100 flex items-center justify-between;
+  }
+  .card-body {
+    @apply px-6 py-4;
+  }
+
+  /* KPI — pastille icône colorée à gauche, chiffre gras à droite */
+  .kpi-card {
+    @apply relative bg-white rounded-3xl shadow-soft p-4 flex items-center gap-3.5;
+  }
+  .kpi-chip {
+    @apply w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0;
+  }
+
+  /* Page header */
+  .page-header {
+    @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6;
+  }
+  .page-title {
+    @apply text-xl font-extrabold text-graphite;
+  }
+  .page-subtitle {
+    @apply text-sm text-slate mt-0.5 font-medium;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.15s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(2px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+}
