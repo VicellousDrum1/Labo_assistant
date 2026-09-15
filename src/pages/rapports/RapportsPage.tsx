@@ -3,7 +3,7 @@ import {
   BarChart3, Package, Monitor, FileText, Smartphone,
   Download, Wifi, Ticket, Zap, FileDown
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase, fetchAllRows } from '@/lib/supabase'
 import { exportToExcel, exportToCSV, exportToPDF, formatDate } from '@/lib/utils'
 import { PageLoader } from '@/components/ui/Spinner'
 import toast from 'react-hot-toast'
@@ -55,71 +55,71 @@ const REPORTS: ReportDef[] = [
 async function fetchReport(id: string): Promise<{ columns: string[]; rows: Record<string, string>[] }> {
   switch (id) {
     case 'inv_actifs': {
-      const { data } = await supabase.from('inventaire').select('*').eq('actif', true).in('etat', ['En service']).order('numero_inventaire')
+      const data = await fetchAllRows<any>(() => supabase.from('inventaire').select('*').eq('actif', true).in('etat', ['En service']).order('numero_inventaire'))
       return { columns: ['N° Inventaire', 'Type', 'Marque/Modèle', 'Utilisateur', 'Matricule', 'Société', 'Exploitation', 'Localisation', 'État'], rows: (data ?? []).map(r => ({ 'N° Inventaire': r.numero_inventaire ?? '', 'Type': r.type_materiel, 'Marque/Modèle': r.marque_modele ?? '', 'Utilisateur': r.utilisateur ?? '', 'Matricule': r.matricule ?? '', 'Société': r.societe ?? '', 'Exploitation': r.exploitation ?? '', 'Localisation': r.localisation ?? '', 'État': r.etat })) }
     }
     case 'inv_pannes': {
-      const { data } = await supabase.from('inventaire').select('*').eq('actif', true).eq('etat', 'En panne').order('numero_inventaire')
+      const data = await fetchAllRows<any>(() => supabase.from('inventaire').select('*').eq('actif', true).eq('etat', 'En panne').order('numero_inventaire'))
       return { columns: ['N° Inventaire', 'Type', 'Marque/Modèle', 'Utilisateur', 'Société', 'Exploitation', 'Observations'], rows: (data ?? []).map(r => ({ 'N° Inventaire': r.numero_inventaire ?? '', 'Type': r.type_materiel, 'Marque/Modèle': r.marque_modele ?? '', 'Utilisateur': r.utilisateur ?? '', 'Société': r.societe ?? '', 'Exploitation': r.exploitation ?? '', 'Observations': r.observations ?? '' })) }
     }
     case 'inv_renouveles': {
-      const { data } = await supabase.from('inventaire').select('*').eq('actif', true).eq('etat', 'Renouvelé').order('numero_inventaire')
+      const data = await fetchAllRows<any>(() => supabase.from('inventaire').select('*').eq('actif', true).eq('etat', 'Renouvelé').order('numero_inventaire'))
       return { columns: ['N° Inventaire', 'Type', 'Marque/Modèle', 'Utilisateur', 'Société', 'Exploitation'], rows: (data ?? []).map(r => ({ 'N° Inventaire': r.numero_inventaire ?? '', 'Type': r.type_materiel, 'Marque/Modèle': r.marque_modele ?? '', 'Utilisateur': r.utilisateur ?? '', 'Société': r.societe ?? '', 'Exploitation': r.exploitation ?? '' })) }
     }
     case 'inv_desactives': {
-      const { data } = await supabase.from('inventaire').select('*').eq('actif', false).order('date_desactivation', { ascending: false })
+      const data = await fetchAllRows<any>(() => supabase.from('inventaire').select('*').eq('actif', false).order('date_desactivation', { ascending: false }))
       return { columns: ['N° Inventaire', 'Type', 'Marque/Modèle', 'Utilisateur', 'Motif désactivation', 'Date désactivation'], rows: (data ?? []).map(r => ({ 'N° Inventaire': r.numero_inventaire ?? '', 'Type': r.type_materiel, 'Marque/Modèle': r.marque_modele ?? '', 'Utilisateur': r.utilisateur ?? '', 'Motif désactivation': r.motif_desactivation ?? '', 'Date désactivation': formatDate(r.date_desactivation) })) }
     }
     case 'inv_complet': {
-      const { data } = await supabase.from('inventaire').select('*').eq('actif', true).order('type_materiel').order('numero_inventaire')
+      const data = await fetchAllRows<any>(() => supabase.from('inventaire').select('*').eq('actif', true).order('type_materiel').order('numero_inventaire'))
       return { columns: ['N° Inventaire', 'Type', 'N° Série', 'Marque/Modèle', 'Utilisateur', 'Matricule', 'Société', 'Exploitation', 'Localisation', 'État', 'Créé le'], rows: (data ?? []).map(r => ({ 'N° Inventaire': r.numero_inventaire ?? '', 'Type': r.type_materiel, 'N° Série': r.numero_serie ?? '', 'Marque/Modèle': r.marque_modele ?? '', 'Utilisateur': r.utilisateur ?? '', 'Matricule': r.matricule ?? '', 'Société': r.societe ?? '', 'Exploitation': r.exploitation ?? '', 'Localisation': r.localisation ?? '', 'État': r.etat, 'Créé le': formatDate(r.created_at) })) }
     }
     case 'os_migres': {
-      const { data } = await supabase.from('systeme_exploitation').select('*, inventaire:inventaire(numero_inventaire,marque_modele,utilisateur,societe,exploitation)').order('date_modification', { ascending: false })
+      const data = await fetchAllRows<any>(() => supabase.from('systeme_exploitation').select('*, inventaire:inventaire(numero_inventaire,marque_modele,utilisateur,societe,exploitation)').order('date_modification', { ascending: false }))
       return { columns: ['N° Inventaire', 'Modèle', 'Utilisateur', 'Société', 'Exploitation', 'Statut OS', 'Mis à jour'], rows: (data ?? []).map((r: Record<string, unknown>) => { const inv = r.inventaire as Record<string, string> | null; return { 'N° Inventaire': inv?.numero_inventaire ?? '', 'Modèle': inv?.marque_modele ?? '', 'Utilisateur': inv?.utilisateur ?? '', 'Société': inv?.societe ?? '', 'Exploitation': inv?.exploitation ?? '', 'Statut OS': String(r.statut_systeme ?? ''), 'Mis à jour': formatDate(String(r.date_modification ?? '')) } }) }
     }
     case 'office_migres': {
-      const { data } = await supabase.from('microsoft_office').select('*, inventaire:inventaire(numero_inventaire,marque_modele,utilisateur,societe,exploitation)').order('date_modification', { ascending: false })
+      const data = await fetchAllRows<any>(() => supabase.from('microsoft_office').select('*, inventaire:inventaire(numero_inventaire,marque_modele,utilisateur,societe,exploitation)').order('date_modification', { ascending: false }))
       return { columns: ['N° Inventaire', 'Modèle', 'Utilisateur', 'Société', 'Exploitation', 'Statut Office', 'Mis à jour'], rows: (data ?? []).map((r: Record<string, unknown>) => { const inv = r.inventaire as Record<string, string> | null; return { 'N° Inventaire': inv?.numero_inventaire ?? '', 'Modèle': inv?.marque_modele ?? '', 'Utilisateur': inv?.utilisateur ?? '', 'Société': inv?.societe ?? '', 'Exploitation': inv?.exploitation ?? '', 'Statut Office': String(r.statut_office ?? ''), 'Mis à jour': formatDate(String(r.date_modification ?? '')) } }) }
     }
     case 'os_non_migres': {
-      const { data } = await supabase.from('systeme_exploitation').select('*, inventaire:inventaire(numero_inventaire,marque_modele,utilisateur,societe,exploitation)').eq('statut_systeme', 'Non migré')
+      const data = await fetchAllRows<any>(() => supabase.from('systeme_exploitation').select('*, inventaire:inventaire(numero_inventaire,marque_modele,utilisateur,societe,exploitation)').eq('statut_systeme', 'Non migré'))
       return { columns: ['N° Inventaire', 'Modèle', 'Utilisateur', 'Société', 'Exploitation'], rows: (data ?? []).map((r: Record<string, unknown>) => { const inv = r.inventaire as Record<string, string> | null; return { 'N° Inventaire': inv?.numero_inventaire ?? '', 'Modèle': inv?.marque_modele ?? '', 'Utilisateur': inv?.utilisateur ?? '', 'Société': inv?.societe ?? '', 'Exploitation': inv?.exploitation ?? '' } }) }
     }
     case 'off_non_migres': {
-      const { data } = await supabase.from('microsoft_office').select('*, inventaire:inventaire(numero_inventaire,marque_modele,utilisateur,societe,exploitation)').eq('statut_office', 'Non migré')
+      const data = await fetchAllRows<any>(() => supabase.from('microsoft_office').select('*, inventaire:inventaire(numero_inventaire,marque_modele,utilisateur,societe,exploitation)').eq('statut_office', 'Non migré'))
       return { columns: ['N° Inventaire', 'Modèle', 'Utilisateur', 'Société', 'Exploitation'], rows: (data ?? []).map((r: Record<string, unknown>) => { const inv = r.inventaire as Record<string, string> | null; return { 'N° Inventaire': inv?.numero_inventaire ?? '', 'Modèle': inv?.marque_modele ?? '', 'Utilisateur': inv?.utilisateur ?? '', 'Société': inv?.societe ?? '', 'Exploitation': inv?.exploitation ?? '' } }) }
     }
     case 'tsp_actifs': {
-      const { data } = await supabase.from('tsp').select('*, inventaire:inventaire(numero_inventaire,numero_serie,marque_modele)').eq('actif', true).order('nom_prenoms')
+      const data = await fetchAllRows<any>(() => supabase.from('tsp').select('*, inventaire:inventaire(numero_inventaire,numero_serie,marque_modele)').eq('actif', true).order('nom_prenoms'))
       return { columns: ['Nom & Prénoms', 'Matricule', 'Société', 'Exploitation', 'N° Inv. Appareil', 'N° Série', 'Modèle', 'N° Puce', 'Opérateur'], rows: (data ?? []).map((r: Record<string, unknown>) => { const inv = r.inventaire as Record<string, string> | null; return { 'Nom & Prénoms': String(r.nom_prenoms ?? ''), 'Matricule': String(r.matricule ?? ''), 'Société': String(r.societe_entite ?? ''), 'Exploitation': String(r.exploitation ?? ''), 'N° Inv. Appareil': inv?.numero_inventaire ?? '', 'N° Série': inv?.numero_serie ?? '', 'Modèle': inv?.marque_modele ?? '', 'N° Puce': String(r.numero_puce ?? ''), 'Opérateur': String(r.operateur ?? '') } }) }
     }
     case 'apk_deploiement': {
-      const { data } = await supabase.from('deploiement_apk').select('*, tsp:tsp(nom_prenoms,matricule,societe_entite,exploitation,operateur)').order('statut_deploiement')
+      const data = await fetchAllRows<any>(() => supabase.from('deploiement_apk').select('*, tsp:tsp(nom_prenoms,matricule,societe_entite,exploitation,operateur)').order('statut_deploiement'))
       return { columns: ['TSP', 'Matricule', 'Société', 'Exploitation', 'Opérateur', 'Statut APK', 'Date déploiement'], rows: (data ?? []).map((r: Record<string, unknown>) => { const tsp = r.tsp as Record<string, string> | null; return { 'TSP': tsp?.nom_prenoms ?? '', 'Matricule': tsp?.matricule ?? '', 'Société': tsp?.societe_entite ?? '', 'Exploitation': tsp?.exploitation ?? '', 'Opérateur': tsp?.operateur ?? '', 'Statut APK': String(r.statut_deploiement ?? ''), 'Date déploiement': formatDate(String(r.date_deploiement ?? '')) } }) }
     }
     case 'dualsim': {
-      const { data } = await supabase.from('site_dualsim').select('*, inventaire:inventaire(numero_inventaire,marque_modele)').eq('actif', true).order('site')
+      const data = await fetchAllRows<any>(() => supabase.from('site_dualsim').select('*, inventaire:inventaire(numero_inventaire,marque_modele)').eq('actif', true).order('site'))
       return { columns: ['Site', 'Utilisateur', 'Société', 'Adresse routeur', 'N° Inv. routeur', 'SIM 1', 'Opérateur 1', 'SIM 2', 'Opérateur 2'], rows: (data ?? []).map((r: Record<string, unknown>) => { const inv = r.inventaire as Record<string, string> | null; return { 'Site': String(r.site ?? ''), 'Utilisateur': String(r.utilisateur ?? ''), 'Société': String(r.societe ?? ''), 'Adresse routeur': String(r.adresse_routeur ?? ''), 'N° Inv. routeur': inv?.numero_inventaire ?? '', 'SIM 1': String(r.numero_sim1 ?? ''), 'Opérateur 1': String(r.operateur_sim1 ?? ''), 'SIM 2': String(r.numero_sim2 ?? ''), 'Opérateur 2': String(r.operateur_sim2 ?? '') } }) }
     }
     case 'di_ouvertes': {
-      const { data } = await supabase.from('suivi_di_ds').select('*').eq('type_demande', 'DI').not('statut', 'in', '("Clôturé","Annulé","Résolu")').order('priorite').order('created_at')
+      const data = await fetchAllRows<any>(() => supabase.from('suivi_di_ds').select('*').eq('type_demande', 'DI').not('statut', 'in', '("Clôturé","Annulé","Résolu")').order('priorite').order('created_at'))
       return { columns: ['N°', 'Date', 'Demandeur', 'Société', 'Exploitation', 'Objet', 'Priorité', 'Statut', 'Technicien'], rows: (data ?? []).map(r => ({ 'N°': r.numero_demande ?? '', 'Date': formatDate(r.date_demande), 'Demandeur': r.demandeur ?? '', 'Société': r.societe ?? '', 'Exploitation': r.exploitation ?? '', 'Objet': r.objet, 'Priorité': r.priorite, 'Statut': r.statut, 'Technicien': r.technicien ?? '' })) }
     }
     case 'ds_ouvertes': {
-      const { data } = await supabase.from('suivi_di_ds').select('*').eq('type_demande', 'DS').not('statut', 'in', '("Clôturé","Annulé","Résolu")').order('priorite').order('created_at')
+      const data = await fetchAllRows<any>(() => supabase.from('suivi_di_ds').select('*').eq('type_demande', 'DS').not('statut', 'in', '("Clôturé","Annulé","Résolu")').order('priorite').order('created_at'))
       return { columns: ['N°', 'Date', 'Demandeur', 'Société', 'Objet', 'Priorité', 'Statut', 'Technicien'], rows: (data ?? []).map(r => ({ 'N°': r.numero_demande ?? '', 'Date': formatDate(r.date_demande), 'Demandeur': r.demandeur ?? '', 'Société': r.societe ?? '', 'Objet': r.objet, 'Priorité': r.priorite, 'Statut': r.statut, 'Technicien': r.technicien ?? '' })) }
     }
     case 'dids_critiques': {
-      const { data } = await supabase.from('suivi_di_ds').select('*').eq('priorite', 'Critique').not('statut', 'in', '("Clôturé","Annulé","Résolu")').order('created_at')
+      const data = await fetchAllRows<any>(() => supabase.from('suivi_di_ds').select('*').eq('priorite', 'Critique').not('statut', 'in', '("Clôturé","Annulé","Résolu")').order('created_at'))
       return { columns: ['Type', 'N°', 'Date', 'Demandeur', 'Objet', 'Statut', 'Technicien'], rows: (data ?? []).map(r => ({ 'Type': r.type_demande, 'N°': r.numero_demande ?? '', 'Date': formatDate(r.date_demande), 'Demandeur': r.demandeur ?? '', 'Objet': r.objet, 'Statut': r.statut, 'Technicien': r.technicien ?? '' })) }
     }
     case 'onduleurs': {
-      const { data } = await supabase.from('inventaire').select('*').eq('type_materiel', 'Onduleur').eq('actif', true).order('etat').order('localisation')
+      const data = await fetchAllRows<any>(() => supabase.from('inventaire').select('*').eq('type_materiel', 'Onduleur').eq('actif', true).order('etat').order('localisation'))
       return { columns: ['N° Inventaire', 'N° Série', 'Marque/Modèle', 'Utilisateur', 'Société', 'Localisation', 'Exploitation', 'État'], rows: (data ?? []).map(r => ({ 'N° Inventaire': r.numero_inventaire ?? '', 'N° Série': r.numero_serie ?? '', 'Marque/Modèle': r.marque_modele ?? '', 'Utilisateur': r.utilisateur ?? '', 'Société': r.societe ?? '', 'Localisation': r.localisation ?? '', 'Exploitation': r.exploitation ?? '', 'État': r.etat })) }
     }
     case 'regulateurs': {
-      const { data } = await supabase.from('inventaire').select('*').eq('type_materiel', 'Régulateur / Stabilisateur').eq('actif', true).order('etat')
+      const data = await fetchAllRows<any>(() => supabase.from('inventaire').select('*').eq('type_materiel', 'Régulateur / Stabilisateur').eq('actif', true).order('etat'))
       return { columns: ['N° Inventaire', 'N° Série', 'Marque/Modèle', 'Utilisateur', 'Localisation', 'Exploitation', 'État'], rows: (data ?? []).map(r => ({ 'N° Inventaire': r.numero_inventaire ?? '', 'N° Série': r.numero_serie ?? '', 'Marque/Modèle': r.marque_modele ?? '', 'Utilisateur': r.utilisateur ?? '', 'Localisation': r.localisation ?? '', 'Exploitation': r.exploitation ?? '', 'État': r.etat })) }
     }
     default:

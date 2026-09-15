@@ -8,7 +8,8 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts'
-import { supabase } from '@/lib/supabase'
+import { supabase, fetchAllRows } from '@/lib/supabase'
+import { chunk } from '@/lib/importHelpers'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { PageLoader } from '@/components/ui/Spinner'
 
@@ -123,11 +124,12 @@ export function Dashboard() {
     setLoading(true)
     try {
       // Construire filtres
-      let invQ = supabase.from('inventaire').select('*', { count: 'exact', head: false })
-      if (filterSociete) invQ = invQ.eq('societe', filterSociete)
-      if (filterExploitation) invQ = invQ.eq('exploitation', filterExploitation)
-
-      const { data: inv } = await invQ
+      const inv = await fetchAllRows<{ id_materiel: string; actif: boolean; etat: string; type_materiel: string; societe?: string; exploitation?: string }>(() => {
+        let invQ = supabase.from('inventaire').select('*')
+        if (filterSociete) invQ = invQ.eq('societe', filterSociete)
+        if (filterExploitation) invQ = invQ.eq('exploitation', filterExploitation)
+        return invQ
+      })
 
       const total      = inv?.length ?? 0
       const actifs     = inv?.filter(r => r.actif).length ?? 0
@@ -157,27 +159,34 @@ export function Dashboard() {
       // IDs actifs pour jointures
       const actifIds = inv?.filter(r => r.actif).map(r => r.id_materiel) ?? []
 
-      // OS
-      const { data: os } = actifIds.length
-        ? await supabase.from('systeme_exploitation').select('statut_systeme').in('id_materiel', actifIds)
-        : { data: [] }
-      const osMigres    = os?.filter(r => r.statut_systeme === 'Migré').length ?? 0
-      const osEnCours   = os?.filter(r => r.statut_systeme === 'En cours de migration').length ?? 0
-      const osNonMigres = os?.filter(r => r.statut_systeme === 'Non migré').length ?? 0
+      // OS — actifIds peut dépasser le millier d'éléments : on découpe la
+      // clause .in() par lots pour éviter une URL trop longue côté serveur.
+      const os: { statut_systeme: string }[] = []
+      for (const batch of chunk(actifIds, 200)) {
+        const { data } = await supabase.from('systeme_exploitation').select('statut_systeme').in('id_materiel', batch)
+        if (data) os.push(...data)
+      }
+      const osMigres    = os.filter(r => r.statut_systeme === 'Migré').length
+      const osEnCours   = os.filter(r => r.statut_systeme === 'En cours de migration').length
+      const osNonMigres = os.filter(r => r.statut_systeme === 'Non migré').length
 
       // Office
-      const { data: off } = actifIds.length
-        ? await supabase.from('microsoft_office').select('statut_office').in('id_materiel', actifIds)
-        : { data: [] }
-      const offMigres    = off?.filter(r => r.statut_office === 'Migré').length ?? 0
-      const offEnCours   = off?.filter(r => r.statut_office === 'En cours de migration').length ?? 0
-      const offNonMigres = off?.filter(r => r.statut_office === 'Non migré').length ?? 0
+      const off: { statut_office: string }[] = []
+      for (const batch of chunk(actifIds, 200)) {
+        const { data } = await supabase.from('microsoft_office').select('statut_office').in('id_materiel', batch)
+        if (data) off.push(...data)
+      }
+      const offMigres    = off.filter(r => r.statut_office === 'Migré').length
+      const offEnCours   = off.filter(r => r.statut_office === 'En cours de migration').length
+      const offNonMigres = off.filter(r => r.statut_office === 'Non migré').length
 
       // TSP
-      let tspQ = supabase.from('tsp').select('*')
-      if (filterSociete) tspQ = tspQ.eq('societe_entite', filterSociete)
-      if (filterExploitation) tspQ = tspQ.eq('exploitation', filterExploitation)
-      const { data: tsp } = await tspQ
+      const tsp = await fetchAllRows<{ id_tsp: string; actif: boolean; societe_entite?: string; exploitation?: string; operateur?: string }>(() => {
+        let tspQ = supabase.from('tsp').select('*')
+        if (filterSociete) tspQ = tspQ.eq('societe_entite', filterSociete)
+        if (filterExploitation) tspQ = tspQ.eq('exploitation', filterExploitation)
+        return tspQ
+      })
       const tspTotal  = tsp?.length ?? 0
       const tspActifs = tsp?.filter(r => r.actif).length ?? 0
 
@@ -195,19 +204,23 @@ export function Dashboard() {
       })
       const tspParOperateur = Object.entries(tspOpMap).map(([name, value]) => ({ name, value }))
 
-      // APK (via TSP IDs)
+      // APK (via TSP IDs) — même précaution : découpage par lots
       const tspIds = tsp?.map(r => r.id_tsp) ?? []
-      const { data: apk } = tspIds.length
-        ? await supabase.from('deploiement_apk').select('statut_deploiement').in('id_tsp', tspIds)
-        : { data: [] }
-      const apkDeploye    = apk?.filter(r => r.statut_deploiement === 'Déployé').length ?? 0
-      const apkNonDeploye = apk?.filter(r => r.statut_deploiement === 'Non déployé').length ?? 0
-      const apkEnCours    = apk?.filter(r => r.statut_deploiement === 'En cours').length ?? 0
+      const apk: { statut_deploiement: string }[] = []
+      for (const batch of chunk(tspIds, 200)) {
+        const { data } = await supabase.from('deploiement_apk').select('statut_deploiement').in('id_tsp', batch)
+        if (data) apk.push(...data)
+      }
+      const apkDeploye    = apk.filter(r => r.statut_deploiement === 'Déployé').length
+      const apkNonDeploye = apk.filter(r => r.statut_deploiement === 'Non déployé').length
+      const apkEnCours    = apk.filter(r => r.statut_deploiement === 'En cours').length
 
       // DualSIM
-      let dsimQ = supabase.from('site_dualsim').select('*')
-      if (filterSociete) dsimQ = dsimQ.eq('societe', filterSociete)
-      const { data: dsim } = await dsimQ
+      const dsim = await fetchAllRows<{ actif: boolean; societe?: string; operateur_sim1?: string; operateur_sim2?: string }>(() => {
+        let dsimQ = supabase.from('site_dualsim').select('*')
+        if (filterSociete) dsimQ = dsimQ.eq('societe', filterSociete)
+        return dsimQ
+      })
       const dsimTotal  = dsim?.length ?? 0
       const dsimActifs = dsim?.filter(r => r.actif).length ?? 0
       const opMap: Record<string, number> = {}
@@ -218,9 +231,11 @@ export function Dashboard() {
       const dsimParOperateur = Object.entries(opMap).map(([name, value]) => ({ name, value }))
 
       // DI/DS
-      let didsQ = supabase.from('suivi_di_ds').select('statut, priorite')
-      if (filterExploitation) didsQ = didsQ.eq('exploitation', filterExploitation)
-      const { data: dids } = await didsQ
+      const dids = await fetchAllRows<{ statut: string; priorite: string }>(() => {
+        let didsQ = supabase.from('suivi_di_ds').select('statut, priorite')
+        if (filterExploitation) didsQ = didsQ.eq('exploitation', filterExploitation)
+        return didsQ
+      })
       const didsOuverts  = dids?.filter(r => r.statut === 'Nouveau' || r.statut === 'Affecté').length ?? 0
       const didsEnCours  = dids?.filter(r => r.statut === 'En cours' || r.statut === 'En attente').length ?? 0
       const didsClotures = dids?.filter(r => r.statut === 'Clôturé' || r.statut === 'Résolu').length ?? 0

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Plus, Eye, Pencil, PowerOff, Download, Filter, Archive, Upload } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase, fetchAllRows } from '@/lib/supabase'
 import { fetchExistingSet, batchInsert, batchLogAudit } from '@/lib/importHelpers'
 import { useAuth } from '@/context/AuthContext'
 import type { Inventaire } from '@/types'
@@ -157,12 +157,15 @@ export function InventairePage() {
   }
 
   async function handleExport(format: 'xlsx' | 'csv' | 'pdf') {
-    // Exporter avec les filtres actifs (sans pagination)
-    let q = supabase.from('inventaire').select('*').eq('actif', true).order(sortKey, { ascending: sortDir === 'asc' })
-    if (search.trim()) q = q.or(`numero_inventaire.ilike.%${search}%,numero_serie.ilike.%${search}%,utilisateur.ilike.%${search}%`)
-    if (filterEtat) q = q.eq('etat', filterEtat)
-    if (filterType) q = q.eq('type_materiel', filterType)
-    const { data: all } = await q
+    // Exporter avec les filtres actifs (sans pagination d'affichage, mais
+    // avec récupération complète au-delà de la limite de 1000 lignes)
+    const all = await fetchAllRows<any>(() => {
+      let q = supabase.from('inventaire').select('*').eq('actif', true).order(sortKey, { ascending: sortDir === 'asc' })
+      if (search.trim()) q = q.or(`numero_inventaire.ilike.%${search}%,numero_serie.ilike.%${search}%,utilisateur.ilike.%${search}%`)
+      if (filterEtat) q = q.eq('etat', filterEtat)
+      if (filterType) q = q.eq('type_materiel', filterType)
+      return q
+    })
     if (!all?.length) { toast.error('Aucune donnée à exporter'); return }
     const rows = all.map(r => ({
       'N° Inventaire': r.numero_inventaire ?? '',

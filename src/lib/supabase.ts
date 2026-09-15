@@ -19,6 +19,40 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 })
 
 // Helper : log d'audit centralisé
+/**
+ * Récupère TOUTES les lignes d'une requête, en dépassant la limite par
+ * défaut de Supabase (1000 lignes par requête). Sans cette pagination,
+ * toute page qui fait un select('*') sur une table de plus de 1000 lignes
+ * (inventaire, tsp, site_dualsim...) reçoit silencieusement un sous-ensemble
+ * tronqué — sans erreur, juste des chiffres faux. C'est ce qui causait les
+ * écarts entre les statistiques du tableau de bord et la réalité du terrain
+ * une fois le parc au-delà de 1000 équipements.
+ *
+ * Usage : passer une fonction qui (re)construit la requête à chaque appel
+ * (car `.range()` doit être appliqué sur une requête fraîche) :
+ *   const rows = await fetchAllRows<Inventaire>(() => {
+ *     let q = supabase.from('inventaire').select('*')
+ *     if (filtre) q = q.eq('societe', filtre)
+ *     return q
+ *   })
+ */
+export async function fetchAllRows<T = Record<string, unknown>>(
+  buildQuery: () => any,
+  pageSize = 1000
+): Promise<T[]> {
+  const all: T[] = []
+  let from = 0
+  for (;;) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1)
+    if (error) throw new Error(error.message)
+    if (!data || data.length === 0) break
+    all.push(...(data as T[]))
+    if (data.length < pageSize) break
+    from += pageSize
+  }
+  return all
+}
+
 export async function logAudit(params: {
   action: string
   table_concernee: string
