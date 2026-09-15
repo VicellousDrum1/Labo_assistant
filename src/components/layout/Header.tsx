@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Menu, Search, LogOut, User, ChevronDown, Bell, PanelLeftClose, PanelLeft } from 'lucide-react'
+import { Menu, Search, LogOut, User, ChevronDown, Bell, PanelLeftClose, PanelLeft, ScanLine } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { GlobalSearch } from '@/components/GlobalSearch'
+import { QrScanner, resolveScan } from '@/components/ui/QrScanner'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -16,6 +17,7 @@ export function Header({ onMenuClick, onToggleCollapse, sidebarCollapsed }: Prop
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
   const dropRef = useRef<HTMLDivElement>(null)
 
   // Fermer dropdown en cliquant ailleurs
@@ -89,6 +91,11 @@ export function Header({ onMenuClick, onToggleCollapse, sidebarCollapsed }: Prop
         </button>
 
         <div className="flex items-center gap-2 ml-auto">
+          {/* Scanner QR — accès rapide terrain */}
+          <button onClick={() => setScanOpen(true)} className="btn-icon bg-white shadow-softer" aria-label="Scanner un matériel">
+            <ScanLine size={18} />
+          </button>
+
           {/* Notifications placeholder */}
           <button className="btn-icon bg-white shadow-softer relative" aria-label="Notifications">
             <Bell size={18} />
@@ -144,6 +151,13 @@ export function Header({ onMenuClick, onToggleCollapse, sidebarCollapsed }: Prop
 
       {/* Modal recherche globale */}
       {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} />}
+
+      {/* Scanner QR (section 54 du cahier des charges) */}
+      <QrScanner
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScan={value => { setScanOpen(false); resolveScan(value, navigate) }}
+      />
     </>
   )
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Save, ArrowLeft, AlertCircle } from 'lucide-react'
 import { supabase, logAudit } from '@/lib/supabase'
@@ -17,6 +17,7 @@ type FormData = Omit<Inventaire,
 
 export function InventaireForm() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { user } = useAuth()
   const refs = useReferentiels()
@@ -25,6 +26,14 @@ export function InventaireForm() {
   const [existing, setExisting] = useState<Inventaire | null>(null)
 
   const { register, handleSubmit, reset, setError, formState: { errors } } = useForm<FormData>()
+
+  // Pré-remplissage du N° de série depuis un scan QR sans correspondance
+  // (section 54 du cahier des charges : "Scanner QR → ouvrir directement
+  // la fiche du matériel" ou proposer sa création s'il n'existe pas encore).
+  useEffect(() => {
+    const sn = searchParams.get('sn')
+    if (!isEdit && sn) reset({ numero_serie: sn } as FormData)
+  }, [searchParams, isEdit, reset])
 
   useEffect(() => {
     if (isEdit && id) {

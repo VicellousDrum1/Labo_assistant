@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Plus, Eye, Pencil, PowerOff, Download, Filter, Archive, Upload } from 'lucide-react'
+import { Plus, Eye, Pencil, PowerOff, Download, Filter, Archive, Upload, ScanLine } from 'lucide-react'
 import { supabase, fetchAllRows } from '@/lib/supabase'
 import { fetchExistingSet, batchInsert, batchLogAudit } from '@/lib/importHelpers'
 import { useAuth } from '@/context/AuthContext'
@@ -11,6 +11,7 @@ import { Pagination } from '@/components/ui/Pagination'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { DesactiverModal } from './DesactiverModal'
 import { ImportExcel, type ImportColumn, type ImportResult } from '@/components/ui/ImportExcel'
+import { QrScanner, resolveScan } from '@/components/ui/QrScanner'
 import { exportToExcel, exportToCSV, exportToPDF, formatDate } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
@@ -115,6 +116,7 @@ export function InventairePage() {
   const [showFilters, setShowFilters] = useState(false)
   const [types, setTypes] = useState<string[]>([])
   const [importOpen, setImportOpen] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
 
   useEffect(() => {
     supabase.from('ref_types_materiel').select('valeur').eq('actif', true).order('ordre')
@@ -342,6 +344,9 @@ export function InventairePage() {
             placeholder="N° inventaire, série, utilisateur…"
             className="flex-1"
           />
+          <button onClick={() => setScanOpen(true)} className="btn-secondary text-sm gap-1.5">
+            <ScanLine size={14} /> Scanner
+          </button>
           <button
             onClick={() => setShowFilters(f => !f)}
             className={`btn-secondary text-sm gap-1.5 ${showFilters ? 'bg-primary-50 border-primary-300 text-primary-700' : ''}`}
@@ -410,6 +415,13 @@ export function InventairePage() {
         templateName="inventaire"
         templateExample={IMPORT_EXAMPLE}
         onImport={handleImport}
+      />
+
+      {/* Scanner QR (section 54 du cahier des charges) */}
+      <QrScanner
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScan={value => { setScanOpen(false); resolveScan(value, navigate) }}
       />
     </div>
   )
