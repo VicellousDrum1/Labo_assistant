@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { FileText, Pencil, Plus, Upload } from 'lucide-react'
 import { useForm } from 'react-hook-form'
-import { supabase, logAudit } from '@/lib/supabase'
+import { supabase, logAudit, fetchAllRows } from '@/lib/supabase'
 import { fetchLookupMap, fetchExistingSet, batchInsert, batchLogAudit } from '@/lib/importHelpers'
 import { useAuth } from '@/context/AuthContext'
 import type { MicrosoftOffice, Inventaire } from '@/types'
@@ -46,6 +46,7 @@ export function OfficePage() {
   const [addMaterielId, setAddMaterielId] = useState('')
   const [pcs, setPcs] = useState<InvPick[]>([])
   const [importOpen, setImportOpen] = useState(false)
+  const [kpiCounts, setKpiCounts] = useState({ total: 0, migres: 0, enCours: 0, nonMigres: 0 })
   const { register, handleSubmit, reset } = useForm<FormData>()
 
   const load = useCallback(async () => {
@@ -72,6 +73,25 @@ export function OfficePage() {
   }, [page, pageSize, search, filterStatut])
 
   useEffect(() => { load() }, [load])
+
+  // Compteurs KPI — comptages SQL réels sur la table entière (voir le même
+  // correctif sur SystemePage.tsx pour le contexte du bug d'origine).
+  const loadKpiCounts = useCallback(async () => {
+    const [totalRes, migresRes, enCoursRes, nonMigresRes] = await Promise.all([
+      supabase.from('microsoft_office').select('*', { count: 'exact', head: true }),
+      supabase.from('microsoft_office').select('*', { count: 'exact', head: true }).eq('statut_office', 'Migré'),
+      supabase.from('microsoft_office').select('*', { count: 'exact', head: true }).eq('statut_office', 'En cours de migration'),
+      supabase.from('microsoft_office').select('*', { count: 'exact', head: true }).eq('statut_office', 'Non migré'),
+    ])
+    setKpiCounts({
+      total: totalRes.count ?? 0,
+      migres: migresRes.count ?? 0,
+      enCours: enCoursRes.count ?? 0,
+      nonMigres: nonMigresRes.count ?? 0,
+    })
+  }, [])
+
+  useEffect(() => { loadKpiCounts() }, [loadKpiCounts])
 
   async function loadPCs() {
     const { data: existing } = await supabase.from('microsoft_office').select('id_materiel')
@@ -101,7 +121,7 @@ export function OfficePage() {
         if (created) await logAudit({ action: 'CREATION', table_concernee: 'microsoft_office', id_enregistrement: created.id_microsoft, nouvelles_valeurs: form as unknown as Record<string, unknown> })
         toast.success('Suivi Office créé')
       }
-      setModalOpen(false); reset(); setAddMaterielId(''); load()
+      setModalOpen(false); reset(); setAddMaterielId(''); load(); loadKpiCounts()
     } catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Erreur') }
   }
 
@@ -155,16 +175,12 @@ export function OfficePage() {
     if (inserted > 0) {
       toast.success(`${inserted} suivi${inserted > 1 ? 's' : ''} Office importé${inserted > 1 ? 's' : ''}`)
       load()
+      loadKpiCounts()
     }
     return { total: rows.length, inserted, errors }
   }
 
-  const kpi = {
-    total: total,
-    migres: data.filter(r => r.statut_office === 'Migré').length,
-    enCours: data.filter(r => r.statut_office === 'En cours de migration').length,
-    nonMigres: data.filter(r => r.statut_office === 'Non migré').length,
-  }
+  const kpi = kpiCounts
 
   const columns: Column<OffWithInv>[] = [
     { key: 'numero_inventaire', header: 'N° Inventaire', render: r => <span className="font-mono text-xs text-primary-700 font-semibold">{r.inventaire?.numero_inventaire ?? '—'}</span> },
@@ -186,7 +202,16 @@ export function OfficePage() {
           <p className="page-subtitle">Suivi des migrations Office</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => exportToExcel(data.map(r => ({ 'N° Inv': r.inventaire?.numero_inventaire ?? '', 'Utilisateur': r.inventaire?.utilisateur ?? '', 'Statut': r.statut_office, 'Mis à jour': formatDate(r.date_modification) })), 'microsoft_office')} className="btn-secondary text-sm">Exporter</button>
+          <button onClick={async () => {
+            const all = await fetchAllRows<OffWithInv>(() => {
+              let eq = supabase.from('microsoft_office')
+                .select(`*, inventaire:inventaire(id_materiel,numero_inventaire,marque_modele,utilisateur,societe,exploitation)`)
+                .order('date_modification', { ascending: false })
+              if (filterStatut) eq = eq.eq('statut_office', filterStatut)
+              return eq
+            })
+            exportToExcel(all.map(r => ({ 'N° Inv': r.inventaire?.numero_inventaire ?? '', 'Utilisateur': r.inventaire?.utilisateur ?? '', 'Statut': r.statut_office, 'Mis à jour': formatDate(r.date_modification) })), 'microsoft_office')
+          }} className="btn-secondary text-sm">Exporter</button>
           {isAssistant && <button onClick={() => setImportOpen(true)} className="btn-secondary text-sm gap-1.5"><Upload size={14} />Importer</button>}
           {isAssistant && <button onClick={() => { setEditing(null); reset({ statut_office: 'Non migré', observation: '' }); loadPCs(); setModalOpen(true) }} className="btn-primary text-sm gap-1.5"><Plus size={14} />Ajouter</button>}
         </div>

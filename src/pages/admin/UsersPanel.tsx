@@ -52,36 +52,24 @@ export function UsersPanel() {
         if (error) throw error
         toast.success('Utilisateur mis à jour')
       } else {
-        // Création via signUp standard — le trigger handle_new_user lit
-        // raw_user_meta_data pour peupler app_users (nom_complet + role).
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: form.email,
-          password: form.password!,
-          options: {
-            data: {
-              nom_complet: form.nom_complet,
-              role: form.role,
-            },
+        // Création via une fonction serveur dédiée (supabase/functions/create-user) :
+        // supabase.auth.signUp() côté navigateur ne convient pas ici, car il
+        // connecte automatiquement le navigateur avec le NOUVEAU compte créé,
+        // ce qui remplace la session de l'admin en cours et fait échouer
+        // l'écriture dans app_users (RLS exige d'être administrateur au
+        // moment de l'insertion).
+        const { data: sessionData } = await supabase.auth.getSession()
+        const { data, error } = await supabase.functions.invoke('create-user', {
+          body: {
+            email: form.email,
+            password: form.password,
+            nom_complet: form.nom_complet,
+            role: form.role,
           },
+          headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
         })
-        if (authError) throw authError
-
-        // Sécurité : si le trigger n'a pas encore propagé (race condition rare),
-        // on force l'upsert sur app_users avec les bonnes valeurs.
-        if (authData.user) {
-          const { error: upsertError } = await supabase
-            .from('app_users')
-            .upsert(
-              {
-                id: authData.user.id,
-                email: form.email,
-                nom_complet: form.nom_complet,
-                role: form.role,
-              },
-              { onConflict: 'id' }
-            )
-          if (upsertError) throw upsertError
-        }
+        if (error) throw error
+        if (data?.success === false) throw new Error(data.error ?? 'Erreur lors de la création')
 
         toast.success('Utilisateur créé — il peut se connecter immédiatement')
       }
@@ -179,9 +167,8 @@ export function UsersPanel() {
               <input type="password" className={`input ${errors.password ? 'input-error' : ''}`}
                 {...register('password', { required: 'Mot de passe requis', minLength: { value: 8, message: '8 caractères minimum' } })} />
               {errors.password && <p className="mt-1 text-xs text-danger-700">{errors.password.message}</p>}
-              <p className="mt-1.5 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
-                ⚠️ Si la confirmation par email est activée sur Supabase, l'utilisateur devra valider son adresse avant de se connecter.
-                Pour un usage intranet, désactivez-la dans <strong>Authentication → Providers → Email</strong>.
+              <p className="mt-1.5 text-xs text-slate bg-canvas-a rounded-lg px-3 py-2">
+                L'utilisateur pourra se connecter immédiatement avec ces identifiants, sans confirmation d'email requise.
               </p>
             </div>
           )}

@@ -397,10 +397,17 @@ CREATE TRIGGER trg_dids_updated_at    BEFORE UPDATE ON suivi_di_ds          FOR 
 CREATE TRIGGER trg_users_updated_at   BEFORE UPDATE ON app_users            FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- Trigger auto-create app_users depuis auth.users
+-- SET search_path = public est indispensable ici : un trigger sur auth.users
+-- s'exécute avec un chemin de recherche qui n'inclut pas "public" par défaut,
+-- donc une référence non qualifiée à "app_users" échoue avec l'erreur
+-- "relation app_users does not exist" (vécu en production le 16/09/2026).
 CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
-  INSERT INTO app_users (id, email, nom_complet, role)
+  INSERT INTO public.app_users (id, email, nom_complet, role)
   VALUES (
     NEW.id,
     NEW.email,
@@ -410,7 +417,7 @@ BEGIN
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users

@@ -47,20 +47,38 @@ export function QrScanner({ open, onClose, onScan }: QrScannerProps) {
       .then(stream => {
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
         streamRef.current = stream
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          videoRef.current.play().catch(() => {})
-        }
+        // Ne pas toucher videoRef ici : la balise <video> n'est montée dans
+        // le DOM qu'une fois `state === 'streaming'` (juste en dessous), donc
+        // videoRef.current serait encore null à cet instant précis. Le
+        // branchement réel du flux se fait dans l'effet séparé ci-dessous,
+        // qui se déclenche APRÈS que React ait monté la balise vidéo.
         setState('streaming')
-        rafRef.current = requestAnimationFrame(tick)
       })
       .catch(err => {
         if (cancelled) return
         setState(err?.name === 'NotFoundError' ? 'unavailable' : 'denied')
       })
 
+    return () => {
+      cancelled = true
+      stopCamera()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  // Branche le flux caméra sur la balise <video> une fois qu'elle est
+  // effectivement montée dans le DOM (state === 'streaming'), puis démarre
+  // la boucle de décodage.
+  useEffect(() => {
+    if (state !== 'streaming') return
+    const video = videoRef.current
+    const stream = streamRef.current
+    if (!video || !stream) return
+
+    video.srcObject = stream
+    video.play().catch(() => {})
+
     function tick(timestamp: number) {
-      const video = videoRef.current
       const canvas = canvasRef.current
       if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
         if (timestamp - lastScanRef.current > SCAN_INTERVAL_MS) {
@@ -83,13 +101,13 @@ export function QrScanner({ open, onClose, onScan }: QrScannerProps) {
       }
       rafRef.current = requestAnimationFrame(tick)
     }
+    rafRef.current = requestAnimationFrame(tick)
 
     return () => {
-      cancelled = true
-      stopCamera()
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [state])
 
   function stopCamera() {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
